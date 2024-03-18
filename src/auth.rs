@@ -2,7 +2,7 @@ use reqwest::header::{HeaderMap, InvalidHeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-const REQUIRED_SCOPES: [&str; 9] = [
+const REQUIRED_SCOPES: [&str; 10] = [
     "admin.usergroups:read",
     "channels:history",
     "channels:read",
@@ -12,6 +12,7 @@ const REQUIRED_SCOPES: [&str; 9] = [
     "im:read",
     "mpim:history",
     "mpim:read",
+    "users:read",
 ];
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

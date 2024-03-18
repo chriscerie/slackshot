@@ -21,6 +21,7 @@ Export snapshots of your Slack workspace data
         - `im:read`
         - `mpim:history`
         - `mpim:read`
+        - `users:read`
 * Install app to workspace
 * Copy user OAuth token
 * Run `slackshot` and follow instructions
