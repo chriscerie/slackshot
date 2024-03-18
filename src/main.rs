@@ -4,6 +4,7 @@
 #![allow(clippy::struct_field_names)]
 #![allow(clippy::cast_possible_truncation)]
 
+use channel::get_messages;
 use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::America::Los_Angeles;
 use conversations::{Channel, HistoryResponse, Message};
@@ -24,6 +25,7 @@ use terminal::{create_new_pb, get_formatted_left_output, OutputColor};
 use crate::conversations::ListResponse;
 
 mod args;
+mod channel;
 mod conversations;
 mod terminal;
 
@@ -93,18 +95,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
     for channel in &channels.channels {
         pb.set_message(format!(": #{}", channel.name));
 
-        let channel_history_response = client
-            .get("https://slack.com/api/conversations.history")
-            .headers(headers.clone())
-            .query(&[("channel", &channel.id), ("limit", &999.to_string())])
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let channel_history = channel_history_response
-            .json::<HistoryResponse>()
-            .await
-            .map_err(|e| e.to_string())?;
+        let messages = get_messages(headers.clone(), &channel.id, &channel.name, pb).await?;
 
         fs::create_dir_all(temp_dir.path().join("channels"))
             .map_err(|e| format!("Failed to create channels directory: {e}"))?;
@@ -132,14 +123,6 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
                 channel.name, e
             )
         })?;
-
-        let Some(messages) = &channel_history.messages else {
-            return Err(format!(
-                "Failed to get messages for channel {} : {}",
-                channel.name,
-                channel_history.error.unwrap_or_default()
-            ));
-        };
 
         let mut messages_with_replies = Vec::new();
 

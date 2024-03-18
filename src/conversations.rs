@@ -39,5 +39,11 @@ pub struct HistoryResponse {
     pub error: Option<String>,
     pub messages: Option<Vec<Message>>,
     pub has_more: Option<bool>,
-    pub pin_count: Option<i64>,
+    pub pin_count: Option<u64>,
+    pub response_metadata: Option<ResponseMetadata>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResponseMetadata {
+    pub next_cursor: String,
 }
