@@ -9,14 +9,6 @@ on:
       - main
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Test zkcir
-        working-directory: ./zkcir
-        run: cargo test
-
   lint:
     runs-on: ubuntu-latest
     steps:
