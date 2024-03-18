@@ -9,19 +9,25 @@ use channel::get_messages;
 use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::America::Los_Angeles;
 use conversations::{Channel, HistoryResponse, Message};
+use derive_more::Display;
+use dialoguer::{theme::ColorfulTheme, Password, Select};
 use dirs::download_dir;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use serde_json::to_writer_pretty;
 use std::{
+    collections::HashMap,
     fs::{self, File},
-    io::{self, BufWriter, Write},
-    process::{self},
+    io::{BufWriter, Write},
+    process,
     time::SystemTime,
 };
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{EnumIter, EnumProperty};
 use tempfile::tempdir;
 use terminal::{create_new_pb, get_formatted_left_output, OutputColor};
+use user::get_user_display_name;
 
 use crate::conversations::ListResponse;
 
@@ -30,6 +36,7 @@ mod auth;
 mod channel;
 mod conversations;
 mod terminal;
+mod user;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct MessageExport {
@@ -50,7 +57,9 @@ struct ChannelExport {
 async fn start(pb: &ProgressBar) -> Result<(), String> {
     let start_time = std::time::Instant::now();
 
-    let token = prompt_input("Enter OAuth token: ").map_err(|e| e.to_string())?;
+    let name_option = prompt_name_option();
+
+    let token = prompt_password_input("Enter OAuth token: ");
 
     pb.set_message(": token");
 
@@ -179,15 +188,44 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
             )
         })?;
 
+        let mut user_id_to_name: HashMap<String, String> = HashMap::new();
+        let mut processing_index = 0;
+
         for message in &channel_export.messages {
-            writeln!(
-                writer_txt,
-                "{} - {}\n{}\n",
+            processing_index += 1;
+            pb.set_message(format!(
+                ": #{} (message {processing_index} / {})",
+                channel.name,
+                channel_export.messages.len()
+            ));
+
+            let user = if name_option == NameOption::UserId {
                 message
                     .message
                     .user
                     .clone()
-                    .unwrap_or("UNKNOWN".to_string()),
+                    .unwrap_or("UNKNOWN".to_string())
+            } else if let Some(user_id) = &message.message.user {
+                if let Some(name) = user_id_to_name.get(user_id) {
+                    name.clone()
+                } else {
+                    let user_name = get_user_display_name(headers.clone(), user_id)
+                        .await
+                        .map_err(|e| {
+                            format!("Failed to get user display name for user ID {user_id}: {e}")
+                        })?;
+
+                    user_id_to_name.insert(user_id.clone(), user_name.clone());
+
+                    user_name
+                }
+            } else {
+                "UNKNOWN".to_string()
+            };
+
+            writeln!(
+                writer_txt,
+                "{user} - {}\n{}\n",
                 format_timestamp(&message.message.ts),
                 message.message.text
             )
@@ -199,10 +237,35 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
             })?;
 
             for reply in &message.replies {
+                let user = if name_option == NameOption::DisplayName {
+                    message
+                        .message
+                        .user
+                        .clone()
+                        .unwrap_or("UNKNOWN".to_string())
+                } else if let Some(user_id) = &message.message.user {
+                    if let Some(name) = user_id_to_name.get(user_id) {
+                        name.clone()
+                    } else {
+                        let user_name = get_user_display_name(headers.clone(), user_id)
+                            .await
+                            .map_err(|e| {
+                                format!(
+                                    "Failed to get user display name for user ID {user_id}: {e}"
+                                )
+                            })?;
+
+                        user_id_to_name.insert(user_id.clone(), user_name.clone());
+
+                        user_name
+                    }
+                } else {
+                    "UNKNOWN".to_string()
+                };
+
                 writeln!(
                     writer_txt,
-                    "    {} - {}\n    {}\n",
-                    reply.user.clone().unwrap_or("UNKNOWN".to_string()),
+                    "    {user} - {}\n    {}\n",
                     format_timestamp(&reply.ts),
                     reply.text
                 )
@@ -273,18 +336,39 @@ fn main() {
     });
 }
 
-fn prompt_input(prompt: &str) -> io::Result<String> {
-    print!("{prompt}");
-    io::stdout().flush()?;
+fn prompt_password_input(prompt: &str) -> String {
+    let password = Password::with_theme(&ColorfulTheme::default())
+        .with_prompt(prompt)
+        .interact()
+        .unwrap_or_default();
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    password
+}
 
-    // Clear the line and move the cursor up
-    print!("\x1b[1A\x1b[2K");
-    io::stdout().flush()?;
+#[derive(Display, EnumIter, Clone, EnumProperty, PartialEq)]
+pub enum NameOption {
+    #[strum(serialize = "User ID", props(Friendly = "User ID"))]
+    UserId,
 
-    Ok(input.trim().to_string())
+    #[strum(serialize = "Display Name", props(Friendly = "Display Name"))]
+    DisplayName,
+}
+
+fn prompt_name_option() -> NameOption {
+    let options = NameOption::iter().collect::<Vec<_>>();
+    let options_friendly = options
+        .iter()
+        .map(|option| option.get_str("Friendly").unwrap())
+        .collect::<Vec<_>>();
+
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select name display")
+        .default(0)
+        .items(&options_friendly)
+        .interact()
+        .unwrap();
+
+    options[selection].clone()
 }
 
 fn format_timestamp(timestamp: &str) -> String {

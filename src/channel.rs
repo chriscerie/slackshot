@@ -13,9 +13,12 @@ pub async fn get_messages(
     let mut all_messages = Vec::new();
     let mut next_cursor: Option<String> = None;
 
-    let mut page = 1;
+    let mut page = 0;
 
     loop {
+        page += 1;
+        pb.set_message(format!(": #{channel_name} (page {page})"));
+
         let limit = 999.to_string();
         let mut params = vec![("channel", channel_id), ("limit", &limit)];
         if let Some(cursor) = &next_cursor {
@@ -47,9 +50,6 @@ pub async fn get_messages(
             "" => break,
             cursor => next_cursor = Some(cursor.to_string()),
         }
-
-        page += 1;
-        pb.set_message(format!(": #{channel_name} ({page})"));
     }
 
     Ok(all_messages)

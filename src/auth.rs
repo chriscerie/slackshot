@@ -1,4 +1,4 @@
-use reqwest::header::{HeaderMap, AUTHORIZATION};
+use reqwest::header::{HeaderMap, InvalidHeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -22,7 +22,12 @@ struct TestResponse {
 
 pub async fn validate_token(token: &str) -> Result<(), String> {
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
+    headers.insert(
+        AUTHORIZATION,
+        format!("Bearer {token}")
+            .parse()
+            .map_err(|e: InvalidHeaderValue| e.to_string())?,
+    );
 
     let client = reqwest::Client::new();
     let response = client
