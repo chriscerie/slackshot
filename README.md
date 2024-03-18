@@ -24,3 +24,6 @@ Export snapshots of your Slack workspace data
 * Install app to workspace
 * Copy user OAuth token
 * Run `slackshot` and follow instructions
+
+![image](https://github.com/chriscerie/slackshot/assets/51393127/1130e072-5d22-4cda-a8fa-51b08ef5fea4)
+
