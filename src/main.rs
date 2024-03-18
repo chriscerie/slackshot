@@ -2,6 +2,7 @@
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::struct_field_names)]
+#![allow(clippy::cast_possible_truncation)]
 
 use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::America::Los_Angeles;
@@ -51,6 +52,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
         "{} token",
         get_formatted_left_output("Received", &OutputColor::Green),
     ));
+    pb.inc(1);
 
     pb.set_message(": channels");
 
@@ -61,7 +63,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
     let channels_response = client
         .get("https://slack.com/api/conversations.list")
         .headers(headers.clone())
-        .form(&[("types", "public_channel,private_channel")])
+        .query(&[("types", "public_channel,private_channel")])
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -76,23 +78,25 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
         get_formatted_left_output("Found", &OutputColor::Green),
         channels.channels.len()
     ));
+    pb.inc(1);
+    pb.inc_length(channels.channels.len() as u64);
 
     pb.println(format!(
         "{} temporary output directory",
         get_formatted_left_output("Created", &OutputColor::Green)
     ));
+    pb.inc(1);
 
     // Put output in tempdir first to gracefully handle user cancelling halfway through
     let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
 
     for channel in &channels.channels {
-        pb.set_message(format!(": {}", channel.name));
+        pb.set_message(format!(": #{}", channel.name));
 
         let channel_history_response = client
             .get("https://slack.com/api/conversations.history")
             .headers(headers.clone())
-            .query(&[("channel", &channel.id)])
-            .form(&[("limit", &999.to_string())])
+            .query(&[("channel", &channel.id), ("limit", &999.to_string())])
             .send()
             .await
             .map_err(|e| e.to_string())?;
@@ -190,7 +194,11 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
             writeln!(
                 writer_txt,
                 "{} - {}\n{}\n",
-                message.message.user,
+                message
+                    .message
+                    .user
+                    .clone()
+                    .unwrap_or("UNKNOWN".to_string()),
                 format_timestamp(&message.message.ts),
                 message.message.text
             )
@@ -205,7 +213,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
                 writeln!(
                     writer_txt,
                     "    {} - {}\n    {}\n",
-                    reply.user,
+                    reply.user.clone().unwrap_or("UNKNOWN".to_string()),
                     format_timestamp(&reply.ts),
                     reply.text
                 )
@@ -223,6 +231,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
             get_formatted_left_output("Processed", &OutputColor::Green),
             channel.name
         ));
+        pb.inc(1);
     }
 
     let now = SystemTime::now();
@@ -257,7 +266,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
 }
 
 fn main() {
-    let pb = &create_new_pb(7, "Running");
+    let pb = &create_new_pb(5, "Running");
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -290,8 +299,8 @@ fn prompt_input(prompt: &str) -> io::Result<String> {
 }
 
 fn format_timestamp(timestamp: &str) -> String {
-    let timestamp = timestamp.parse::<i64>().unwrap();
-    let datetime = DateTime::<Utc>::from_timestamp(timestamp, 0);
+    let timestamp = timestamp.parse::<f64>().unwrap();
+    let datetime = DateTime::<Utc>::from_timestamp(timestamp as i64, 0);
 
     match datetime {
         Some(datetime) => {

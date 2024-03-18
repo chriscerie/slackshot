@@ -16,6 +16,7 @@ Export snapshots of your Slack workspace data
         - `channels:history`
         - `channels:read`
         - `groups:history`
+        - `groups:read`
         - `im:history`
         - `im:read`
         - `mpim:history`

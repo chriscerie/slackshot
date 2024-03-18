@@ -21,7 +21,8 @@ pub struct ListResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Message {
-    pub user: String,
+    /// Might not exist for bots
+    pub user: Option<String>,
 
     /// Timestamp
     pub ts: String,
