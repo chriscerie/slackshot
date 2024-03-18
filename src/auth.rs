@@ -1,7 +1,6 @@
-use std::collections::HashSet;
-
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 const REQUIRED_SCOPES: [&str; 9] = [
     "admin.usergroups:read",
@@ -33,8 +32,21 @@ pub async fn validate_token(token: &str) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
-    let oauth_scopes = response
-        .headers()
+    let response_headers = response.headers().clone();
+
+    let test_response = response
+        .json::<TestResponse>()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !test_response.ok {
+        return test_response.error.map_or_else(
+            || Err("Could not validate auth token".to_string()),
+            |e| Err(e.to_string()),
+        );
+    }
+
+    let oauth_scopes = response_headers
         .get("x-oauth-scopes")
         .ok_or_else(|| "x-oauth-scopes header not found".to_string())?
         .to_str()
@@ -53,15 +65,5 @@ pub async fn validate_token(token: &str) -> Result<(), String> {
         return Err(format!("Missing scopes {missing_scopes:?}"));
     }
 
-    let test_response = response
-        .json::<TestResponse>()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    test_response.ok.then_some(()).ok_or_else(|| {
-        test_response.error.map_or_else(
-            || "Could not validate auth token".to_string(),
-            |e| e.to_string(),
-        )
-    })
+    Ok(())
 }
