@@ -4,6 +4,7 @@
 #![allow(clippy::struct_field_names)]
 #![allow(clippy::cast_possible_truncation)]
 
+use auth::validate_token;
 use channel::get_messages;
 use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::America::Los_Angeles;
@@ -25,6 +26,7 @@ use terminal::{create_new_pb, get_formatted_left_output, OutputColor};
 use crate::conversations::ListResponse;
 
 mod args;
+mod auth;
 mod channel;
 mod conversations;
 mod terminal;
@@ -48,11 +50,15 @@ struct ChannelExport {
 async fn start(pb: &ProgressBar) -> Result<(), String> {
     let start_time = std::time::Instant::now();
 
-    let token = prompt_input("Enter your token: ").map_err(|e| e.to_string())?;
+    let token = prompt_input("Enter OAuth token: ").map_err(|e| e.to_string())?;
+
+    pb.set_message(": token");
+
+    validate_token(&token).await.map_err(|e| e.to_string())?;
 
     pb.println(format!(
         "{} token",
-        get_formatted_left_output("Received", &OutputColor::Green),
+        get_formatted_left_output("Validated", &OutputColor::Green),
     ));
     pb.inc(1);
 
