@@ -57,7 +57,7 @@ async fn start(pb: &ProgressBar) -> Result<(), String> {
     validate_token(&token).await.map_err(|e| e.to_string())?;
 
     pb.println(format!(
-        "{} token",
+        "{} token scopes",
         get_formatted_left_output("Validated", &OutputColor::Green),
     ));
     pb.inc(1);
